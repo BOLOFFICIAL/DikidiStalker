@@ -1,19 +1,22 @@
 ﻿using DikidiStalker;
-using System.Text;
 
 internal class Program
 {
     private static ConfigurationManager _configuration;
+    private static string _baseDirectory;
 
     private static void Main(string[] args)
     {
         _configuration = new ConfigurationManager();
+        _baseDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DikidiCompanyes");
         BackgroundWorker();
     }
 
     static void BackgroundWorker()
     {
-        Console.WriteLine("DikidiStalker started");
+        var now = DateTime.Now;
+
+        Console.WriteLine($"[ {now} ] DikidiStalker started");
 
         var currentDikidiCompanyes = new List<DikidiCompany>();
 
@@ -34,45 +37,50 @@ internal class Program
 
             InitializeDirectory(actualDikidiCompanyes);
 
-            var now = DateTime.Now;
+            now = DateTime.Now;
 
             var totalInfoMinutes = (now - lastInfoUpdate).TotalMinutes;
             var totalServiceMinutes = (now - lastServiceUpdate).TotalMinutes;
 
             foreach (var company in actualDikidiCompanyes)
             {
-                UpdateInfo(currentDikidiCompanyes, currentDataInfo, dataInfoInhibitor, dataInfoPeriod, now, totalInfoMinutes, company);
-                UpdateService(currentDikidiCompanyes, currentDataInfo, currentServiceData, serviceDataInhibitor, totalServiceMinutes, company);
+                var isNew = !currentDikidiCompanyes.Exists(c => c.CompanyId == company.CompanyId);
+
+                if (totalInfoMinutes > dataInfoInhibitor || isNew)
+                {
+                    CheckDikidiSlots(currentDataInfo, dataInfoPeriod, company);
+                }
+                if (totalServiceMinutes > serviceDataInhibitor || isNew)
+                {
+                    CheckDikidiService(currentDataInfo, currentServiceData, company);
+                }
+
                 Thread.Sleep(500);
             }
 
             var onlyInActual = actualDikidiCompanyes.Where(c => !currentDikidiCompanyes.Select(x => x.CompanyId).Contains(c.CompanyId)).ToList();
-            
+
             currentDikidiCompanyes = actualDikidiCompanyes.ToList();
 
             if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor || onlyInActual.Any())
             {
                 if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor)
                 {
-                    if (totalInfoMinutes > dataInfoInhibitor && !(totalServiceMinutes > serviceDataInhibitor)) 
-                    {
+                    if (totalInfoMinutes > dataInfoInhibitor && !(totalServiceMinutes > serviceDataInhibitor))
                         Console.WriteLine($"[ {DateTime.Now} ]\tОбновление данных по окошкам");
-                    }
 
-                    if (totalServiceMinutes > serviceDataInhibitor && !(totalInfoMinutes > dataInfoInhibitor)) 
-                    {
+                    if (totalServiceMinutes > serviceDataInhibitor && !(totalInfoMinutes > dataInfoInhibitor))
                         Console.WriteLine($"[ {DateTime.Now} ]\tОбновление данных по услугам");
-                    }
 
-                    if (totalInfoMinutes > dataInfoInhibitor && totalServiceMinutes > serviceDataInhibitor) 
-                    {
+                    if (totalInfoMinutes > dataInfoInhibitor && totalServiceMinutes > serviceDataInhibitor)
                         Console.WriteLine($"[ {DateTime.Now} ]\tОбновление всех данных");
-                    }
 
-                    if (totalInfoMinutes > dataInfoInhibitor) lastInfoUpdate = now;
-                    if (totalServiceMinutes > serviceDataInhibitor) lastServiceUpdate = now;
+                    if (totalInfoMinutes > dataInfoInhibitor)
+                        lastInfoUpdate = now;
+                    if (totalServiceMinutes > serviceDataInhibitor)
+                        lastServiceUpdate = now;
                 }
-                else if(onlyInActual.Any())
+                else if (onlyInActual.Any())
                 {
                     Console.WriteLine($"[ {DateTime.Now} ]\tОбновление всех данных по добавленным организациям: {onlyInActual.Count} шт.");
                 }
@@ -82,58 +90,14 @@ internal class Program
         }
     }
 
-    private static void UpdateInfo(List<DikidiCompany> currentDikidiCompanyes, Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, int dataInfoInhibitor, int dataInfoPeriod, DateTime now, double totalInfoMinutes, DikidiCompany company)
-    {
-        if (totalInfoMinutes > dataInfoInhibitor || !currentDikidiCompanyes.Any(c => c.CompanyId == company.CompanyId))
-        {
-            var actualDataInfo = new Dictionary<DateTime, DataInfoResponse>();
-
-            for (int day = 0; day < dataInfoPeriod; day++)
-            {
-                var currentDate = now.AddDays(day).Date;
-                var slots = DikidiInfo.GetDikidiSlots(company, currentDate);
-
-                if (slots is null) continue;
-
-                actualDataInfo.Add(currentDate, slots);
-            }
-
-            if (actualDataInfo is null)
-            {
-
-            }
-
-            UpdateDataInfo(company, currentDataInfo, actualDataInfo);
-        }
-    }
-
-    private static void UpdateService(List<DikidiCompany> currentDikidiCompanyes, Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, Dictionary<string, ServiceDataResponse> currentServiceData, int serviceDataInhibitor, double totalServiceMinutes, DikidiCompany company)
-    {
-        if (totalServiceMinutes > serviceDataInhibitor || !currentDikidiCompanyes.Any(c => c.CompanyId == company.CompanyId))
-        {
-            var actualServiceData = DikidiInfo.GetServices(company);
-            var com = currentDataInfo.FirstOrDefault(i => i.Key == company.CompanyId.ToString()).Value?.FirstOrDefault().Value?.Data?.Company;
-
-            if (actualServiceData is null)
-            {
-
-            }
-
-            UpdateServiceData(company, com, currentServiceData, actualServiceData);
-        }
-    }
-
     private static void InitializeDirectory(List<DikidiCompany> DikidiCompanyes)
     {
-        var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
-
-        var baseFolder = Path.Combine(appDirectory, "DikidiCompanyes");
-
-        if (!Directory.Exists(baseFolder)) Directory.CreateDirectory(baseFolder);
+        if (!Directory.Exists(_baseDirectory)) Directory.CreateDirectory(_baseDirectory);
 
         foreach (var dikidiCompanye in DikidiCompanyes)
         {
-            var dikidiCompanyFolder = Path.Combine(baseFolder, $"Dikidi_{dikidiCompanye.CompanyId}-{dikidiCompanye.ServiceId}");
+            var dikidiCompanyFolder = Path.Combine(_baseDirectory, $"Dikidi_{dikidiCompanye.CompanyId}-{dikidiCompanye.ServiceId}");
+
             if (!Directory.Exists(dikidiCompanyFolder))
             {
                 Console.WriteLine($"[ {DateTime.Now} ] Создание папки для организации {dikidiCompanye.CompanyId}");
@@ -151,81 +115,84 @@ internal class Program
         }
     }
 
-    private static void UpdateDataInfo(DikidiCompany company, Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, Dictionary<DateTime, DataInfoResponse> actualDataInfo)
+
+    private static void CheckDikidiSlots(Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, int dataInfoPeriod, DikidiCompany company)
     {
+        var now = DateTime.Now.Date;
+        var filePath = Path.Combine(_baseDirectory, $"Dikidi_{company.CompanyId}-{company.ServiceId}", "Info.dkdstlk");
+
+        var actualDataInfo = Enumerable.Range(0, dataInfoPeriod)
+            .Select(day => now.AddDays(day))
+            .Select(date => new
+            {
+                Date = date,
+                Slots = DikidiInfo.GetDikidiSlots(company, date)
+            })
+            .Where(x => x.Slots != null)
+            .ToDictionary(x => x.Date, x =>
+            {
+                var filteredTimes = x.Slots.Data.Times
+                .Select(t => new
+                {
+                    t.Key,
+                    Times = t.Value
+                    .Where(el => DateTime.Parse(el).Date == x.Date)
+                    .ToList()
+                })
+                .Where(t => t.Times.Count > 0)
+                .ToDictionary(t => t.Key, t => t.Times);
+                if (filteredTimes.Count == 0)
+                    return null;
+                x.Slots.Data.Times = filteredTimes;
+                return x.Slots;
+            })
+            .Where(x => x.Value != null)
+            .ToDictionary(x => x.Key, x => x.Value);
+
+        var masters = actualDataInfo.Values
+            .SelectMany(a => a.Data.Masters)
+            .DistinctBy(x => x.Key)
+            .ToDictionary(x => x.Key, x => x.Value);
+
+        var slotUpdate = new SlotUpdate();
+
+        if (currentDataInfo.TryGetValue(company.CompanyId, out var current))
+        {
+            slotUpdate = UpdateCurrentSlots(current, actualDataInfo);
+        }
+        else
+        {
+            slotUpdate.InitializeCollection = actualDataInfo;
+        }
+
         var companyInfo = actualDataInfo.Values.FirstOrDefault()?.Data?.Company;
 
-        if (companyInfo is null) return;
+        SlotManager.Print(masters, companyInfo, slotUpdate, filePath);
 
-        var infoFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DikidiCompanyes", $"Dikidi_{company.CompanyId}-{company.ServiceId}", "Info.dkdstlk");
-        var content = new StringBuilder();
+        currentDataInfo[company.CompanyId] = actualDataInfo;
+    }
+
+    private static SlotUpdate UpdateCurrentSlots(Dictionary<DateTime, DataInfoResponse> currentDataInfo, Dictionary<DateTime, DataInfoResponse> actualDataInfo)
+    {
         var now = DateTime.Now;
-
-        try
-        {
-            if (currentDataInfo.ContainsKey(companyInfo.Id))
-            {
-                UpdateCurrentInfo(currentDataInfo, actualDataInfo, companyInfo, content, now);
-            }
-            else
-            {
-                InitializeCurrentInfo(actualDataInfo, companyInfo, content, now);
-            }
-        }
-        catch (Exception ex)
-        {
-            content.AppendLine($"[ {now} ] Возникла ошибка при обновлении окошек: {ex.Message}");
-        }
-        finally
-        {
-            using (StreamWriter writer = new StreamWriter(infoFile, append: true))
-            {
-                if (content.Length > 0)
-                {
-                    writer.Write(content);
-                    writer.WriteLine("==================================================\n");
-                }
-            }
-
-            currentDataInfo[companyInfo.Id] = actualDataInfo;
-        }
-
-    }
-
-    private static void InitializeCurrentInfo(Dictionary<DateTime, DataInfoResponse> actualDataInfo, CompanyInfo companyInfo, StringBuilder content, DateTime now)
-    {
-        content.AppendLine($"[ {now} ] Актуальные окошки для организации: {companyInfo.Name}\n");
-
-        foreach (var dataInfo in actualDataInfo)
-        {
-            content.AppendLine($"\t| Дата: {dataInfo.Key.ToShortDateString()}\n");
-
-            foreach (var time in dataInfo.Value.Data.Times.Where(t => t.Key != "0"))
-            {
-                content.AppendLine($"\t\t> {dataInfo.Value.Data?.Masters[time.Key].Username}\n");
-
-                foreach (var el in time.Value)
-                {
-                    content.AppendLine($"\t\t\t[ {DateTime.Parse(el).TimeOfDay} ]");
-                }
-                content.AppendLine();
-            }
-        }
-    }
-
-    private static void UpdateCurrentInfo(Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, Dictionary<DateTime, DataInfoResponse> actualDataInfo, CompanyInfo companyInfo, StringBuilder content, DateTime now)
-    {
+        var slotUpdate = new SlotUpdate();
         var minActual = actualDataInfo.Keys.Min();
-        var maxCurrent = currentDataInfo[companyInfo.Id].Keys.Max();
 
-        if (actualDataInfo.Count < currentDataInfo[companyInfo.Id].Count)
+        //currentDataInfo.Remove(currentDataInfo.Last().Key);
+
+        var maxCurrent = currentDataInfo.Keys.Max();
+
+        if (actualDataInfo.Count < currentDataInfo.Count)
         {
             maxCurrent = actualDataInfo.Keys.Max();
         }
 
-        var currentCollection = currentDataInfo[companyInfo.Id].Where(c => c.Key >= minActual && c.Key <= maxCurrent).ToList();
+        //actualDataInfo.First().Value.Data.Times.Values.First().RemoveAt(1);
+        //currentDataInfo.Last().Value.Data.Times.Values.First().RemoveAt(1);
+
+        var currentCollection = currentDataInfo.Where(c => c.Key >= minActual && c.Key <= maxCurrent).ToList();
         var actualCollection = actualDataInfo.Where(c => c.Key >= minActual && c.Key <= maxCurrent).ToList();
-        var modCollection = actualDataInfo.Where(c => c.Key > maxCurrent).ToList();
+        var newCollection = actualDataInfo.Where(c => c.Key > maxCurrent).ToDictionary();
 
         for (var day = minActual; day <= maxCurrent; day = day.AddDays(1))
         {
@@ -235,194 +202,90 @@ internal class Program
             var delCollection = new Dictionary<string, List<string>>();
             var addCollection = new Dictionary<string, List<string>>();
 
-            foreach (var time in divCurrent.Times.Where(t => t.Key != "0"))
+            if (divCurrent != null)
             {
-                if (!delCollection.ContainsKey(time.Key))
-                    delCollection[time.Key] = new List<string>();
-
-                delCollection[time.Key].AddRange(time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList());
-
-                if (delCollection[time.Key].Count == 0)
-                    delCollection.Remove(time.Key);
-            }
-
-            foreach (var time in divActual.Times.Where(t => t.Key != "0"))
-            {
-                if (!addCollection.ContainsKey(time.Key))
-                    addCollection[time.Key] = new List<string>();
-
-                addCollection[time.Key].AddRange(time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList());
-
-                if (addCollection[time.Key].Count == 0)
-                    addCollection.Remove(time.Key);
-            }
-
-            if (delCollection.Any() || addCollection.Any())
-            {
-                var message = $"[ {now} ] Обнаружены изменения в окошках организации {companyInfo.Name} ({companyInfo.Id})\n";
-
-                Console.Write(message);
-                content.AppendLine(message);
-            }
-
-            if (delCollection.Any())
-            {
-                content.AppendLine($"\t| Удаленные окошки {day.ToShortDateString()}:\n");
-
-                foreach (var del in delCollection)
+                foreach (var time in divCurrent?.Times?.Where(t => t.Key != "0"))
                 {
-                    content.AppendLine($"\t\t> {divCurrent.Masters[del.Key].Username}\n");
+                    if (!delCollection.ContainsKey(time.Key))
+                        delCollection[time.Key] = new List<string>();
 
-                    foreach (var value in del.Value)
-                    {
-                        content.AppendLine($"\t\t\t[ {DateTime.Parse(value).TimeOfDay} ]");
-                    }
-                    content.AppendLine();
+                    delCollection[time.Key].AddRange(time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList());
+
+                    if (delCollection[time.Key].Count == 0)
+                        delCollection.Remove(time.Key);
                 }
             }
 
-            if (addCollection.Any())
+            if (divActual != null)
             {
-                content.AppendLine($"\t| Добавленные окошки {day.ToShortDateString()}:\n");
-
-                foreach (var del in addCollection)
+                foreach (var time in divActual?.Times?.Where(t => t.Key != "0"))
                 {
-                    content.AppendLine($"\t\t> {divActual.Masters[del.Key].Username}\n");
+                    if (!addCollection.ContainsKey(time.Key))
+                        addCollection[time.Key] = new List<string>();
 
-                    foreach (var value in del.Value)
-                    {
-                        content.AppendLine($"\t\t\t[ {DateTime.Parse(value).TimeOfDay} ]");
-                    }
-                    content.AppendLine();
+                    addCollection[time.Key].AddRange(time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList());
+
+                    if (addCollection[time.Key].Count == 0)
+                        addCollection.Remove(time.Key);
                 }
             }
+
+            if (delCollection.Any()) slotUpdate.DelCollection[day] = delCollection;
+            if (addCollection.Any()) slotUpdate.AddCollection[day] = addCollection;
         }
 
-        if (modCollection.Any())
-        {
-            content.AppendLine($"[ {now} ] Обнаружены новые окошки:\n");
+        slotUpdate.NewCollection = newCollection;
 
-            foreach (var mod in modCollection)
-            {
-                content.AppendLine($"\t| Дата: {mod.Key.ToShortDateString()}\n");
-
-                foreach (var time in mod.Value.Data.Times.Where(t => t.Key != "0"))
-                {
-                    content.AppendLine($"\t\t> {mod.Value.Data?.Masters[time.Key].Username}\n");
-
-                    foreach (var el in time.Value)
-                    {
-                        content.AppendLine($"\t\t\t[ {DateTime.Parse(el).TimeOfDay} ]");
-                    }
-                    content.AppendLine();
-                }
-            }
-        }
+        return slotUpdate;
     }
 
-    private static void UpdateServiceData(DikidiCompany company, CompanyInfo companyInfo, Dictionary<string, ServiceDataResponse> currentServiceData, ServiceDataResponse actualServiceData)
+
+    private static void CheckDikidiService(Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, Dictionary<string, ServiceDataResponse> currentServiceData, DikidiCompany company)
     {
+        var filePath = Path.Combine(_baseDirectory, $"Dikidi_{company.CompanyId}-{company.ServiceId}", "Service.dkdstlk");
+        var actualServiceData = DikidiInfo.GetServices(company);
+        var companyInfo = currentDataInfo.FirstOrDefault(i => i.Key == company.CompanyId.ToString()).Value?.FirstOrDefault().Value?.Data?.Company;
+
+        var masters = currentDataInfo
+            .SelectMany(outerKvp => outerKvp.Value)
+            .SelectMany(innerKvp => innerKvp.Value.Data.Masters)
+            .GroupBy(m => m.Key)
+            .ToDictionary(g => g.Key, g => g.Last().Value);
+
         if (companyInfo is null || actualServiceData is null) return;
 
-        var serviceFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DikidiCompanyes", $"Dikidi_{company.CompanyId}-{company.ServiceId}", "Service.dkdstlk");
-        var content = new StringBuilder();
-        var now = DateTime.Now;
+        var serviceUpdate = new ServiceUpdate();
 
-        try
+        if (currentServiceData.TryGetValue(company.CompanyId, out var current))
         {
-            if (currentServiceData.ContainsKey(companyInfo.Id))
-            {
-                UpdateCurrentService(companyInfo, currentServiceData, actualServiceData, content, now);
-            }
-            else
-            {
-                InitializeCurrentService(companyInfo, actualServiceData, content, now);
-            }
+            serviceUpdate = UpdateCurrentService(companyInfo, current, actualServiceData);
         }
-        catch (Exception ex)
+        else
         {
-            content.AppendLine($"[ {now} ] Возникла ошибка при обновлении услуг: {ex.Message}\n");
+            serviceUpdate.InitializeCollection = actualServiceData;
         }
-        finally
-        {
-            using (StreamWriter writer = new StreamWriter(serviceFile, append: true))
-            {
-                if (content.Length > 0)
-                {
-                    writer.Write(content);
-                    writer.WriteLine("==================================================\n");
-                }
-            }
 
-            currentServiceData[companyInfo.Id] = actualServiceData;
-        }
+        ServiceManager.Print(masters, companyInfo, actualServiceData,serviceUpdate, filePath);
+
+        currentServiceData[company.CompanyId] = actualServiceData;
     }
 
-    private static void InitializeCurrentService(CompanyInfo companyInfo, ServiceDataResponse actualServiceData, StringBuilder content, DateTime now)
+    private static ServiceUpdate UpdateCurrentService(CompanyInfo companyInfo, ServiceDataResponse currentServiceData, ServiceDataResponse actualServiceData)
     {
-        content.AppendLine($"[ {now} ] Актуальные услуги для организации {companyInfo.Name}\n");
-
-        foreach (var block in actualServiceData.Data.List)
-        {
-            content.AppendLine($"\t| Блок: {block.Name}\n");
-            foreach (var service in block.Services)
-            {
-                content.AppendLine($"\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-            }
-            content.AppendLine();
-        }
-    }
-
-    private static void UpdateCurrentService(CompanyInfo companyInfo, Dictionary<string, ServiceDataResponse> currentServiceData, ServiceDataResponse actualServiceData, StringBuilder content, DateTime now)
-    {
-        var currentService = currentServiceData[companyInfo.Id].Data.List.ToList();
+        var serviceUpdate = new ServiceUpdate();
+        var currentService = currentServiceData.Data.List.ToList();
         var actualService = actualServiceData.Data.List.ToList();
+
+        //currentService.RemoveAt(currentService.Count-1);
+        //actualService.RemoveAt(0);
 
         var actualBlockIds = new HashSet<string>(actualService.Select(s => s.Id));
         var currentBlockIds = new HashSet<string>(currentService.Select(s => s.Id));
 
         var modBlockCollection = currentService.Where(s => actualBlockIds.Contains(s.Id));
 
-        var delBlockCollection = currentService.Where(s => !actualBlockIds.Contains(s.Id));
-        var addBlockCollection = actualService.Where(s => !currentBlockIds.Contains(s.Id));
-
-        if (delBlockCollection.Any() || addBlockCollection.Any())
-        {
-            var message = $"[ {now} ] Обнаружены изменения в блоках услуг организации {companyInfo.Name} ({companyInfo.Id})\n";
-
-            Console.Write(message);
-            content.AppendLine(message);
-        }
-
-        if (addBlockCollection.Any())
-        {
-            content.AppendLine($"\t| Добавленные блоки:\n");
-
-            foreach (var block in addBlockCollection)
-            {
-                content.AppendLine($"\t\t| Блок: {block.Name}\n");
-                foreach (var service in block.Services)
-                {
-                    content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                }
-                content.AppendLine();
-            }
-        }
-
-        if (delBlockCollection.Any())
-        {
-            content.AppendLine($"\t| Удаленные блоки:\n");
-
-            foreach (var block in delBlockCollection)
-            {
-                content.AppendLine($"\t\t| Блок: {block.Name}\n");
-                foreach (var service in block.Services)
-                {
-                    content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                }
-                content.AppendLine();
-            }
-        }
+        serviceUpdate.DelBlockCollection = currentService.Where(s => !actualBlockIds.Contains(s.Id)).ToList();
+        serviceUpdate.AddBlockCollection = actualService.Where(s => !currentBlockIds.Contains(s.Id)).ToList();
 
         if (modBlockCollection.Any())
         {
@@ -431,79 +294,47 @@ internal class Program
                 var currentServiceIds = currentService.First(s => s.Id == block.Id).Services.Select(s => s.Id.ToString()).ToList();
                 var actualServiceIds = actualService.First(s => s.Id == block.Id).Services.Select(s => s.Id.ToString()).ToList();
 
+                //currentServiceIds.RemoveAt(currentServiceIds.Count - 1);
+                //actualServiceIds.RemoveAt(0);
+
                 var delServiceCollection = currentService.First(s => s.Id == block.Id).Services.Where(s => !actualServiceIds.Contains(s.Id.ToString())).ToList();
                 var addServiceCollection = actualService.First(s => s.Id == block.Id).Services.Where(s => !currentServiceIds.Contains(s.Id.ToString())).ToList();
 
                 var modServiceCollection = currentService.First(s => s.Id == block.Id).Services.Where(s => actualServiceIds.Contains(s.Id.ToString())).ToList();
 
-                if (delServiceCollection.Any() || addServiceCollection.Any())
-                {
-                    var message = $"[ {now} ] Обнаружены изменения в блоке {block.Name} организации {companyInfo.Name} ({companyInfo.Id})\n";
-
-                    Console.Write(message);
-                    content.AppendLine(message);
-                }
-
-                if (delServiceCollection.Any())
-                {
-                    content.AppendLine($"\t| Удаленные услуги:\n");
-
-                    foreach (var service in delServiceCollection)
-                    {
-                        content.AppendLine($"\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                    }
-                    content.AppendLine();
-                }
-
-                if (addServiceCollection.Any())
-                {
-                    content.AppendLine($"\t| Добавленные услуги:\n");
-
-                    foreach (var service in addServiceCollection)
-                    {
-                        content.AppendLine($"\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                    }
-                    content.AppendLine();
-                }
+                if (delServiceCollection.Any()) serviceUpdate.DelServiceCollection[block.Id] = delServiceCollection;
+                if (addServiceCollection.Any()) serviceUpdate.AddServiceCollection[block.Id] = addServiceCollection;
 
                 if (modServiceCollection.Any())
                 {
-                    var messages = new List<string>();
-
                     foreach (var el in modServiceCollection)
                     {
                         var curService = currentService.First(s => s.Id == block.Id).Services.First(s => s.Id == el.Id);
                         var actlService = actualService.First(s => s.Id == block.Id).Services.First(s => s.Id == el.Id);
 
+                        //actlService.Price = 100;
+                        //actlService.Name = "123";
+                        //actlService.Time = 10;
+
                         var isPrise = curService.Price != actlService.Price;
                         var isName = curService.Name != actlService.Name;
                         var isTime = curService.Time != actlService.Time;
 
-                        var name = isName ? curService.Id.ToString() : curService.Name.Replace('\n', ' ');
-
-                        var message = $"\t\t| Изменение услуги \"{name}\":\n\n";
-
                         if (isPrise || isName || isTime)
                         {
-                            if (isPrise) message += $"\t\t\t - Изменение стоимости: {curService.Price} -> {actlService.Price}\n";
-                            if (isName) message += $"\t\t\t - Изменение названия: {curService.Name} -> {actlService.Name}\n";
-                            if (isTime) message += $"\t\t\t - Изменение времени выполнения: {curService.Time} -> {actlService.Time}\n";
-
-                            messages.Add(message);
+                            if (!serviceUpdate.ModServiceCollection.ContainsKey(block.Id)) 
+                            {
+                                serviceUpdate.ModServiceCollection[block.Id] = new Dictionary<int, (Service, Service)>();
+                            }
+                            serviceUpdate.ModServiceCollection[block.Id][el.Id] = (curService, actlService);
                         }
-                    }
 
-                    if (messages.Any())
-                    {
-                        content.AppendLine($"\t| Обнаружено изменение услуг в блоке {block.Name}\n");
-
-                        foreach (var msg in messages)
-                        {
-                            content.AppendLine(msg);
-                        }
+                        var name = isName ? curService.Id.ToString() : curService.Name.Replace('\n', ' ');
                     }
                 }
             }
         }
+
+        return serviceUpdate;
     }
 }
