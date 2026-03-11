@@ -71,8 +71,6 @@ internal class Program
 
             var onlyInActual = actualDikidiCompanyes.Where(c => !currentDikidiCompanyes.Select(x => x.CompanyId).Contains(c.CompanyId)).ToList();
 
-            currentDikidiCompanyes = actualDikidiCompanyes.ToList();
-
             if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor || onlyInActual.Count != 0)
             {
                 if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor)
@@ -90,6 +88,11 @@ internal class Program
                         Console.Write($"( Услуги ) ");
                     }
 
+                    if (currentDikidiCompanyes.Count > 0 && onlyInActual.Count != 0)
+                    {
+                        Console.Write($"и все данные по добавленным ораганизациям: {onlyInActual.Count} шт.");
+                    }
+
                     Console.WriteLine();
                 }
                 else if (onlyInActual.Count != 0)
@@ -97,6 +100,8 @@ internal class Program
                     Console.WriteLine($"[ {DateTime.Now} ]\tАнализ всех данных по добавленным организациям: {onlyInActual.Count} шт.");
                 }
             }
+
+            currentDikidiCompanyes = actualDikidiCompanyes.ToList();
 
             Task.Delay(1000 * _baseDelay).Wait();
         }

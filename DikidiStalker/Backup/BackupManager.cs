@@ -22,13 +22,13 @@ namespace DikidiStalker.Backup
             try
             {
                 var backUpfile = Path.Combine(_backUpDirectory, $"{fileName}.dkdbackup");
-                if (!File.Exists(backUpfile)) return default;
+                if (!File.Exists(backUpfile)) return Activator.CreateInstance<T>();
                 var backUp = File.ReadAllText(backUpfile);
                 return JsonConvert.DeserializeObject<T>(backUp);
             }
             catch
             {
-                return default;
+                return Activator.CreateInstance<T>();
             }
         }
 
