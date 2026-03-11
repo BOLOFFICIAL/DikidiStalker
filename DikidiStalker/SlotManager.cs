@@ -13,7 +13,7 @@ namespace DikidiStalker
             {
                 if (slotUpdate.InitializeCollection.Count > 0)
                 {
-                    content.AppendLine($"[ {now} ] Актуальные слоты для организации \"{companyInfo.Name}\"\n");
+                    content.AppendLine($"[ {now} ]\tАктуальные слоты для организации \"{companyInfo.Name}\" ({companyInfo.Id})\n");
 
                     foreach (var dataInfo in slotUpdate.InitializeCollection)
                     {
@@ -31,14 +31,14 @@ namespace DikidiStalker
                         }
                     }
                 }
-                else if (slotUpdate.AddCollection.Any() || slotUpdate.DelCollection.Any() || slotUpdate.NewCollection.Any())
+                else if (slotUpdate.AddCollection.Count != 0 || slotUpdate.DelCollection.Count != 0 || slotUpdate.NewCollection.Count != 0)
                 {
-                    var message = $"[ {now} ] Обнаружены изменения в слотах организации \"{companyInfo.Name}\"";
+                    var message = $"[ {now} ]\tОбнаружены изменения в слотах организации \"{companyInfo.Name}\" ({companyInfo.Id})";
                     
                     Console.WriteLine(message);
                     content.AppendLine($"{message}\n");
 
-                    if (slotUpdate.AddCollection.Any())
+                    if (slotUpdate.AddCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Добавленные слоты\n");
 
@@ -60,7 +60,7 @@ namespace DikidiStalker
                         }
                     }
 
-                    if (slotUpdate.DelCollection.Any())
+                    if (slotUpdate.DelCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Удаленные слоты\n");
 
@@ -82,7 +82,7 @@ namespace DikidiStalker
                         }
                     }
 
-                    if (slotUpdate.NewCollection.Any())
+                    if (slotUpdate.NewCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Новые слоты\n");
 
@@ -107,7 +107,7 @@ namespace DikidiStalker
             }
             else
             {
-                content.AppendLine($"[ {now} ] Возникла ошибка при анализе слотов организации \"{companyInfo.Name}\": {slotUpdate.Exception}");
+                content.AppendLine($"[ {now} ]\tВозникла ошибка при анализе слотов организации \"{companyInfo.Name}\" ({companyInfo.Id}): {slotUpdate.Exception}");
             }
 
             using (StreamWriter writer = new StreamWriter(filePath, append: true))

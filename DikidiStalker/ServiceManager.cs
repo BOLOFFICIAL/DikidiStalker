@@ -14,21 +14,21 @@ namespace DikidiStalker
                 if (serviceUpdate.InitializeCollection is null)
                 {
                     var hasChanges = false;
-                    hasChanges |= serviceUpdate.DelBlockCollection.Any();
-                    hasChanges |= serviceUpdate.AddBlockCollection.Any();
-                    hasChanges |= serviceUpdate.AddServiceCollection.Any();
-                    hasChanges |= serviceUpdate.DelServiceCollection.Any();
-                    hasChanges |= serviceUpdate.ModServiceCollection.Any();
+                    hasChanges |= serviceUpdate.DelBlockCollection.Count != 0;
+                    hasChanges |= serviceUpdate.AddBlockCollection.Count != 0;
+                    hasChanges |= serviceUpdate.AddServiceCollection.Count != 0;
+                    hasChanges |= serviceUpdate.DelServiceCollection.Count != 0;
+                    hasChanges |= serviceUpdate.ModServiceCollection.Count != 0;
 
                     if (hasChanges)
                     {
-                        var message = $"[ {now} ] Обнаружены изменения в услугах организации \"{companyInfo.Name}\"";
+                        var message = $"[ {now} ]\tОбнаружены изменения в услугах организации \"{companyInfo.Name}\" ({companyInfo.Id})";
 
                         Console.WriteLine(message);
                         content.AppendLine($"{message}\n");
                     }
 
-                    if (serviceUpdate.DelBlockCollection.Any()) 
+                    if (serviceUpdate.DelBlockCollection.Count != 0) 
                     {
                         content.AppendLine($"\t| Удаленные блоки:\n");
 
@@ -45,7 +45,7 @@ namespace DikidiStalker
                         }
                     }
 
-                    if (serviceUpdate.AddBlockCollection.Any())
+                    if (serviceUpdate.AddBlockCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Добавленные блоки:\n");
 
@@ -62,7 +62,7 @@ namespace DikidiStalker
                         }
                     }
 
-                    if (serviceUpdate.AddServiceCollection.Any())
+                    if (serviceUpdate.AddServiceCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Добавленные услуги:\n");
 
@@ -79,7 +79,7 @@ namespace DikidiStalker
                         }
                     }
 
-                    if (serviceUpdate.DelServiceCollection.Any())
+                    if (serviceUpdate.DelServiceCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Удаленные услуги:\n");
 
@@ -96,7 +96,7 @@ namespace DikidiStalker
                         }
                     }
 
-                    if (serviceUpdate.ModServiceCollection.Any())
+                    if (serviceUpdate.ModServiceCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Измененные услуги:\n");
 
@@ -132,7 +132,7 @@ namespace DikidiStalker
                 }
                 else
                 {
-                    content.AppendLine($"[ {now} ] Актуальные услуги для организации \"{companyInfo.Name}\"\n");
+                    content.AppendLine($"[ {now} ]\tАктуальные услуги для организации \"{companyInfo.Name}\" ({companyInfo.Id})\n");
 
                     var data = serviceUpdate.InitializeCollection;
 
@@ -150,7 +150,7 @@ namespace DikidiStalker
             }
             else
             {
-                content.AppendLine($"[ {now} ] Возникла ошибка при анализе услуг: {serviceUpdate?.Exception}");
+                content.AppendLine($"[ {now} ]\tВозникла ошибка при анализе услуг организации \"{companyInfo.Name}\" ({companyInfo.Id}): {serviceUpdate.Exception}");
             }
 
             using (StreamWriter writer = new StreamWriter(filePath, append: true))

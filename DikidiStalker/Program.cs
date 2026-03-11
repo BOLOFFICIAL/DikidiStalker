@@ -62,27 +62,27 @@ internal class Program
 
             currentDikidiCompanyes = actualDikidiCompanyes.ToList();
 
-            if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor || onlyInActual.Any())
+            if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor || onlyInActual.Count != 0)
             {
                 if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor)
                 {
                     if (totalInfoMinutes > dataInfoInhibitor && !(totalServiceMinutes > serviceDataInhibitor))
-                        Console.WriteLine($"[ {DateTime.Now} ]\tОбновление данных по окошкам");
+                        Console.WriteLine($"[ {DateTime.Now} ]\tАнализ данных по окошкам");
 
                     if (totalServiceMinutes > serviceDataInhibitor && !(totalInfoMinutes > dataInfoInhibitor))
-                        Console.WriteLine($"[ {DateTime.Now} ]\tОбновление данных по услугам");
+                        Console.WriteLine($"[ {DateTime.Now} ]\tАнализ данных по услугам");
 
                     if (totalInfoMinutes > dataInfoInhibitor && totalServiceMinutes > serviceDataInhibitor)
-                        Console.WriteLine($"[ {DateTime.Now} ]\tОбновление всех данных");
+                        Console.WriteLine($"[ {DateTime.Now} ]\tАнализ всех данных");
 
                     if (totalInfoMinutes > dataInfoInhibitor)
                         lastInfoUpdate = now;
                     if (totalServiceMinutes > serviceDataInhibitor)
                         lastServiceUpdate = now;
                 }
-                else if (onlyInActual.Any())
+                else if (onlyInActual.Count != 0)
                 {
-                    Console.WriteLine($"[ {DateTime.Now} ]\tОбновление всех данных по добавленным организациям: {onlyInActual.Count} шт.");
+                    Console.WriteLine($"[ {DateTime.Now} ]\tАнализ всех данных по добавленным организациям: {onlyInActual.Count} шт.");
                 }
             }
 
@@ -100,7 +100,7 @@ internal class Program
 
             if (!Directory.Exists(dikidiCompanyFolder))
             {
-                Console.WriteLine($"[ {DateTime.Now} ] Создание папки для организации {dikidiCompanye.CompanyId}");
+                Console.WriteLine($"[ {DateTime.Now} ]\tСоздание папки для организации {dikidiCompanye.CompanyId}");
                 Directory.CreateDirectory(dikidiCompanyFolder);
             }
 
@@ -230,8 +230,8 @@ internal class Program
                 }
             }
 
-            if (delCollection.Any()) slotUpdate.DelCollection[day] = delCollection;
-            if (addCollection.Any()) slotUpdate.AddCollection[day] = addCollection;
+            if (delCollection.Count != 0) slotUpdate.DelCollection[day] = delCollection;
+            if (addCollection.Count != 0) slotUpdate.AddCollection[day] = addCollection;
         }
 
         slotUpdate.NewCollection = newCollection;
@@ -287,7 +287,7 @@ internal class Program
         serviceUpdate.DelBlockCollection = currentService.Where(s => !actualBlockIds.Contains(s.Id)).ToList();
         serviceUpdate.AddBlockCollection = actualService.Where(s => !currentBlockIds.Contains(s.Id)).ToList();
 
-        if (modBlockCollection.Any())
+        if (modBlockCollection.Count() != 0)
         {
             foreach (var block in modBlockCollection)
             {
@@ -302,10 +302,10 @@ internal class Program
 
                 var modServiceCollection = currentService.First(s => s.Id == block.Id).Services.Where(s => actualServiceIds.Contains(s.Id.ToString())).ToList();
 
-                if (delServiceCollection.Any()) serviceUpdate.DelServiceCollection[block.Id] = delServiceCollection;
-                if (addServiceCollection.Any()) serviceUpdate.AddServiceCollection[block.Id] = addServiceCollection;
+                if (delServiceCollection.Count != 0) serviceUpdate.DelServiceCollection[block.Id] = delServiceCollection;
+                if (addServiceCollection.Count != 0) serviceUpdate.AddServiceCollection[block.Id] = addServiceCollection;
 
-                if (modServiceCollection.Any())
+                if (modServiceCollection.Count != 0)
                 {
                     foreach (var el in modServiceCollection)
                     {
