@@ -90,14 +90,14 @@ internal class Program
 
                     if (currentDikidiCompanyes.Count > 0 && onlyInActual.Count != 0)
                     {
-                        Console.Write($"( Данные по новым ораганизациям: {onlyInActual.Count} шт. ) ");
+                        Console.Write($"( Данные по новым ораганизациям ) ");
                     }
 
                     Console.WriteLine();
                 }
                 else if (onlyInActual.Count != 0)
                 {
-                    Console.WriteLine($"[ {DateTime.Now} ]\tАнализ всех данных по добавленным организациям: {onlyInActual.Count} шт.");
+                    Console.WriteLine($"[ {DateTime.Now} ]\tАнализ всех данных по добавленным организациям");
                 }
             }
 

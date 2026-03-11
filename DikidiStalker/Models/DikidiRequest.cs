@@ -1,6 +1,6 @@
 ﻿using DikidiStalker.Config;
 
-namespace DikidiStalker
+namespace DikidiStalker.Models
 {
     public class DikidiRequest
     {
