@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using DikidiStalker.Models;
+using System.Text;
 
 namespace DikidiStalker
 {
@@ -22,21 +23,21 @@ namespace DikidiStalker
 
                     if (hasChanges)
                     {
-                        var message = $"[ {now} ]\tОбнаружены изменения в услугах организации \"{companyInfo.Name}\" ({companyInfo.Id})";
+                        var message = $"[ {now} ]\tОбнаружены изменения в услугах организации \"{companyInfo.Name}\"";
 
-                        Console.WriteLine(message);
+                        Console.WriteLine($"{message}  ({companyInfo.Id})");
                         content.AppendLine($"{message}\n");
                     }
 
-                    if (serviceUpdate.DelBlockCollection.Count != 0) 
+                    if (serviceUpdate.DelBlockCollection.Count != 0)
                     {
                         content.AppendLine($"\t| Удаленные блоки:\n");
 
-                        foreach (var block in serviceUpdate.DelBlockCollection) 
+                        foreach (var block in serviceUpdate.DelBlockCollection)
                         {
                             content.AppendLine($"\t\t| Блок {block.Name}\n");
 
-                            foreach (var service in block.Services) 
+                            foreach (var service in block.Services)
                             {
                                 content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
                             }
@@ -68,9 +69,9 @@ namespace DikidiStalker
 
                         foreach (var block in serviceUpdate.AddServiceCollection)
                         {
-                            content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b=>b.Id == block.Key).Name}\n");
-                            
-                            foreach (var service in block.Value) 
+                            content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
+
+                            foreach (var service in block.Value)
                             {
                                 content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
                             }
@@ -86,7 +87,7 @@ namespace DikidiStalker
                         foreach (var block in serviceUpdate.DelServiceCollection)
                         {
                             content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
-                            
+
                             foreach (var service in block.Value)
                             {
                                 content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
@@ -104,13 +105,13 @@ namespace DikidiStalker
                         {
                             content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
 
-                            foreach (var service in block.Value) 
+                            foreach (var service in block.Value)
                             {
-                                content.AppendLine($"\t\t\t| Услуга: {actualServiceData.Data.List.First(b => b.Id == block.Key).Services.First(s => s.Id == service.Key).Name.Replace('\n',' ')}\n");
+                                content.AppendLine($"\t\t\t| Услуга: {actualServiceData.Data.List.First(b => b.Id == block.Key).Services.First(s => s.Id == service.Key).Name.Replace('\n', ' ')}\n");
 
                                 var value = service.Value;
 
-                                if (value.Item1.Price != value.Item2.Price) 
+                                if (value.Item1.Price != value.Item2.Price)
                                 {
                                     content.AppendLine($"\t\t\t\t| Цена: {value.Item1.Price} -> {value.Item2.Price}");
                                 }
@@ -132,7 +133,7 @@ namespace DikidiStalker
                 }
                 else
                 {
-                    content.AppendLine($"[ {now} ]\tАктуальные услуги для организации \"{companyInfo.Name}\" ({companyInfo.Id})\n");
+                    content.AppendLine($"[ {now} ]\tАктуальные услуги для организации \"{companyInfo.Name}\"\n");
 
                     var data = serviceUpdate.InitializeCollection;
 

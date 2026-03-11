@@ -1,4 +1,6 @@
-﻿namespace DikidiStalker
+﻿using DikidiStalker.Config;
+
+namespace DikidiStalker
 {
     public class DikidiRequest
     {

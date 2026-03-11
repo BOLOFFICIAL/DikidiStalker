@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using DikidiStalker.Models;
+using System.Text;
 
 namespace DikidiStalker
 {
@@ -13,7 +14,7 @@ namespace DikidiStalker
             {
                 if (slotUpdate.InitializeCollection.Count > 0)
                 {
-                    content.AppendLine($"[ {now} ]\tАктуальные слоты для организации \"{companyInfo.Name}\" ({companyInfo.Id})\n");
+                    content.AppendLine($"[ {now} ]\tАктуальные слоты для организации \"{companyInfo.Name}\"\n");
 
                     foreach (var dataInfo in slotUpdate.InitializeCollection)
                     {
@@ -33,9 +34,9 @@ namespace DikidiStalker
                 }
                 else if (slotUpdate.AddCollection.Count != 0 || slotUpdate.DelCollection.Count != 0 || slotUpdate.NewCollection.Count != 0)
                 {
-                    var message = $"[ {now} ]\tОбнаружены изменения в слотах организации \"{companyInfo.Name}\" ({companyInfo.Id})";
-                    
-                    Console.WriteLine(message);
+                    var message = $"[ {now} ]\tОбнаружены изменения в слотах организации \"{companyInfo.Name}\"";
+
+                    Console.WriteLine($"{message}  ({companyInfo.Id})");
                     content.AppendLine($"{message}\n");
 
                     if (slotUpdate.AddCollection.Count != 0)
@@ -49,7 +50,7 @@ namespace DikidiStalker
                             foreach (var masterEntry in slotEntry.Value)
                             {
                                 content.AppendLine($"\t\t\t> {masters[masterEntry.Key].Username}\n");
-                                
+
                                 foreach (var timeSlot in masterEntry.Value)
                                 {
                                     content.AppendLine($"\t\t\t\t[ {DateTime.Parse(timeSlot).TimeOfDay} ]");
@@ -71,12 +72,12 @@ namespace DikidiStalker
                             foreach (var masterEntry in slotEntry.Value)
                             {
                                 content.AppendLine($"\t\t\t> {masters[masterEntry.Key].Username}\n");
-                                
+
                                 foreach (var timeSlot in masterEntry.Value)
                                 {
                                     content.AppendLine($"\t\t\t\t[ {DateTime.Parse(timeSlot).TimeOfDay} ]");
                                 }
-                                
+
                                 content.AppendLine();
                             }
                         }

@@ -1,6 +1,6 @@
 ﻿using System.Xml.Serialization;
 
-namespace DikidiStalker
+namespace DikidiStalker.Config
 {
     public class ConfigurationManager
     {

@@ -1,14 +1,20 @@
 ﻿using DikidiStalker;
+using DikidiStalker.Backup;
+using DikidiStalker.Config;
+using DikidiStalker.Models;
 
 internal class Program
 {
     private static ConfigurationManager _configuration;
     private static string _baseDirectory;
+    private static BackupManager _backupManager;
+    private const int _baseDelay = 60;
 
     private static void Main(string[] args)
     {
         _configuration = new ConfigurationManager();
         _baseDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DikidiCompanyes");
+        _backupManager = new BackupManager(_baseDirectory);
         BackgroundWorker();
     }
 
@@ -22,6 +28,9 @@ internal class Program
 
         var currentDataInfo = new Dictionary<string, Dictionary<DateTime, DataInfoResponse>>();
         var currentServiceData = new Dictionary<string, ServiceDataResponse>();
+
+        currentDataInfo = _backupManager.LoadBackup<Dictionary<string, Dictionary<DateTime, DataInfoResponse>>>("SlotBackUp");
+        currentServiceData = _backupManager.LoadBackup<Dictionary<string, ServiceDataResponse>>("ServiceBackUp");
 
         var lastInfoUpdate = DateTime.MinValue;
         var lastServiceUpdate = DateTime.MinValue;
@@ -49,10 +58,12 @@ internal class Program
                 if (totalInfoMinutes > dataInfoInhibitor || isNew)
                 {
                     CheckDikidiSlots(currentDataInfo, dataInfoPeriod, company);
+                    _backupManager.SaveBackup(currentDataInfo, "SlotBackUp");
                 }
                 if (totalServiceMinutes > serviceDataInhibitor || isNew)
                 {
                     CheckDikidiService(currentDataInfo, currentServiceData, company);
+                    _backupManager.SaveBackup(currentServiceData, "ServiceBackUp");
                 }
 
                 Thread.Sleep(500);
@@ -66,19 +77,20 @@ internal class Program
             {
                 if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor)
                 {
-                    if (totalInfoMinutes > dataInfoInhibitor && !(totalServiceMinutes > serviceDataInhibitor))
-                        Console.WriteLine($"[ {DateTime.Now} ]\tАнализ данных по окошкам");
-
-                    if (totalServiceMinutes > serviceDataInhibitor && !(totalInfoMinutes > dataInfoInhibitor))
-                        Console.WriteLine($"[ {DateTime.Now} ]\tАнализ данных по услугам");
-
-                    if (totalInfoMinutes > dataInfoInhibitor && totalServiceMinutes > serviceDataInhibitor)
-                        Console.WriteLine($"[ {DateTime.Now} ]\tАнализ всех данных");
-
-                    if (totalInfoMinutes > dataInfoInhibitor)
+                    Console.Write($"[ {DateTime.Now} ]\tАнализ завершен: ");
+                    
+                    if (totalInfoMinutes > dataInfoInhibitor) 
+                    {
                         lastInfoUpdate = now;
-                    if (totalServiceMinutes > serviceDataInhibitor)
+                        Console.Write($"( Слоты ) ");
+                    }
+                    if (totalServiceMinutes > serviceDataInhibitor) 
+                    {
                         lastServiceUpdate = now;
+                        Console.Write($"( Услуги ) ");
+                    }
+
+                    Console.WriteLine();
                 }
                 else if (onlyInActual.Count != 0)
                 {
@@ -86,7 +98,7 @@ internal class Program
                 }
             }
 
-            Task.Delay(1000 * 60).Wait();
+            Task.Delay(1000 * _baseDelay).Wait();
         }
     }
 
@@ -202,32 +214,29 @@ internal class Program
             var delCollection = new Dictionary<string, List<string>>();
             var addCollection = new Dictionary<string, List<string>>();
 
-            if (divCurrent != null)
+            if (divCurrent is null || divActual is null) 
+                continue;
+
+            foreach (var time in divCurrent?.Times?.Where(t => t.Key != "0"))
             {
-                foreach (var time in divCurrent?.Times?.Where(t => t.Key != "0"))
-                {
-                    if (!delCollection.ContainsKey(time.Key))
-                        delCollection[time.Key] = new List<string>();
+                if (!delCollection.ContainsKey(time.Key))
+                    delCollection[time.Key] = new List<string>();
 
-                    delCollection[time.Key].AddRange(time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList());
+                delCollection[time.Key].AddRange(time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList());
 
-                    if (delCollection[time.Key].Count == 0)
-                        delCollection.Remove(time.Key);
-                }
+                if (delCollection[time.Key].Count == 0)
+                    delCollection.Remove(time.Key);
             }
 
-            if (divActual != null)
+            foreach (var time in divActual?.Times?.Where(t => t.Key != "0"))
             {
-                foreach (var time in divActual?.Times?.Where(t => t.Key != "0"))
-                {
-                    if (!addCollection.ContainsKey(time.Key))
-                        addCollection[time.Key] = new List<string>();
+                if (!addCollection.ContainsKey(time.Key))
+                    addCollection[time.Key] = new List<string>();
 
-                    addCollection[time.Key].AddRange(time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList());
+                addCollection[time.Key].AddRange(time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList());
 
-                    if (addCollection[time.Key].Count == 0)
-                        addCollection.Remove(time.Key);
-                }
+                if (addCollection[time.Key].Count == 0)
+                    addCollection.Remove(time.Key);
             }
 
             if (delCollection.Count != 0) slotUpdate.DelCollection[day] = delCollection;
@@ -265,7 +274,7 @@ internal class Program
             serviceUpdate.InitializeCollection = actualServiceData;
         }
 
-        ServiceManager.Print(masters, companyInfo, actualServiceData,serviceUpdate, filePath);
+        ServiceManager.Print(masters, companyInfo, actualServiceData, serviceUpdate, filePath);
 
         currentServiceData[company.CompanyId] = actualServiceData;
     }
@@ -322,7 +331,7 @@ internal class Program
 
                         if (isPrise || isName || isTime)
                         {
-                            if (!serviceUpdate.ModServiceCollection.ContainsKey(block.Id)) 
+                            if (!serviceUpdate.ModServiceCollection.ContainsKey(block.Id))
                             {
                                 serviceUpdate.ModServiceCollection[block.Id] = new Dictionary<int, (Service, Service)>();
                             }

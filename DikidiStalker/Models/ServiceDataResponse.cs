@@ -1,4 +1,4 @@
-﻿namespace DikidiStalker
+﻿namespace DikidiStalker.Models
 {
     public class ServiceDataResponse
     {
