@@ -6,14 +6,14 @@ namespace DikidiStalker
 {
     public class DikidiInfo
     {
-        public static ServiceDataResponse GetServices(DikidiCompany company)
+        public static ServiceDataResponse GetCompanyServices(DikidiCompany company)
         {
             try
             {
                 var requestUri = $"https://dikidi.ru/mobile/ajax/newrecord/company_services/?lang=ru&array=1&company={company.CompanyId}&master=&share=";
                 var referer = $"https://dikidi.app/{company.CompanyId}?p=1.pi-po";
 
-                return GetDikidi<ServiceDataResponse>(requestUri, referer).Result;
+                return SendRequest<ServiceDataResponse>(requestUri, referer).Result;
             }
             catch
             {
@@ -21,14 +21,14 @@ namespace DikidiStalker
             }
         }
 
-        public static DataInfoResponse GetDikidiSlots(DikidiCompany company, DateTime date)
+        public static DataInfoResponse GetAvailableTimeSlots(DikidiCompany company, DateTime date)
         {
             try
             {
                 var requestUri = $"https://dikidi.ru/ru/mobile/ajax/newrecord/get_datetimes/?company_id={company.CompanyId}&date={date.ToString("yyyy-MM-dd")}&service_id%5B%5D={company.ServiceId}&with_first=false&day_month=";
                 var referer = $"https://dikidi.ru/ru/record/{company.CompanyId}?p=3.pi-po-ssm-sd&o=7&s={company.ServiceId}&rl=0_undefined&source=widget";
 
-                return GetDikidi<DataInfoResponse>(requestUri, referer).Result;
+                return SendRequest<DataInfoResponse>(requestUri, referer).Result;
             }
             catch
             {
@@ -36,7 +36,7 @@ namespace DikidiStalker
             }
         }
 
-        private static async Task<T> GetDikidi<T>(string RequestUri, string Referer)
+        private static async Task<T> SendRequest<T>(string RequestUri, string Referer)
         {
             try
             {

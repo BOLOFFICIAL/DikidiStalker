@@ -1,12 +1,129 @@
-﻿using DikidiStalker.Models;
+﻿using DikidiStalker.Backup;
+using DikidiStalker.Config;
+using DikidiStalker.Models;
 using System.Text;
 
 namespace DikidiStalker
 {
     public class ServiceManager
     {
-        public static void Print(Dictionary<string, MasterInfo> masters, CompanyInfo companyInfo, ServiceDataResponse actualServiceData, ServiceUpdate serviceUpdate, string filePath)
+        private string _baseDirectory;
+        private BackupManager _backupManager;
+
+        public ServiceManager(string baseDirectory)
         {
+            _baseDirectory = baseDirectory;
+            _backupManager = new BackupManager(_baseDirectory);
+        }
+
+        public Dictionary<string, ServiceDataResponse> LoadBackup()
+        {
+            return _backupManager.LoadBackup<Dictionary<string, ServiceDataResponse>>("ServiceBackUp");
+        }
+
+        public void CheckDikidiService(Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, Dictionary<string, ServiceDataResponse> currentServiceData, DikidiCompany company)
+        {
+            var actualServiceData = DikidiInfo.GetCompanyServices(company);
+            var companyInfo = currentDataInfo.FirstOrDefault(i => i.Key == company.CompanyId.ToString()).Value?.FirstOrDefault().Value?.Data?.Company;
+
+            var masters = currentDataInfo
+                .SelectMany(outerKvp => outerKvp.Value)
+                .SelectMany(innerKvp => innerKvp.Value.Data.Masters)
+                .GroupBy(m => m.Key)
+                .ToDictionary(g => g.Key, g => g.Last().Value);
+
+            if (companyInfo is null || actualServiceData is null) return;
+
+            var serviceUpdate = new ServiceUpdate();
+
+            if (currentServiceData.TryGetValue(company.CompanyId, out var current))
+            {
+                serviceUpdate = UpdateCurrentService(companyInfo, current, actualServiceData);
+            }
+            else
+            {
+                serviceUpdate.InitializeCollection = actualServiceData;
+            }
+
+            Print(masters, companyInfo, actualServiceData, serviceUpdate);
+
+            currentServiceData[company.CompanyId] = actualServiceData;
+
+            _backupManager.SaveBackup(currentServiceData, "ServiceBackUp");
+        }
+
+        private ServiceUpdate UpdateCurrentService(CompanyInfo companyInfo, ServiceDataResponse currentServiceData, ServiceDataResponse actualServiceData)
+        {
+            var serviceUpdate = new ServiceUpdate();
+            var currentService = currentServiceData.Data.List.ToList();
+            var actualService = actualServiceData.Data.List.ToList();
+
+            //currentService.RemoveAt(currentService.Count-1);
+            //actualService.RemoveAt(0);
+
+            var actualBlockIds = new HashSet<string>(actualService.Select(s => s.Id));
+            var currentBlockIds = new HashSet<string>(currentService.Select(s => s.Id));
+
+            var modBlockCollection = currentService.Where(s => actualBlockIds.Contains(s.Id));
+
+            serviceUpdate.DelBlockCollection = currentService.Where(s => !actualBlockIds.Contains(s.Id)).ToList();
+            serviceUpdate.AddBlockCollection = actualService.Where(s => !currentBlockIds.Contains(s.Id)).ToList();
+
+            if (modBlockCollection.Count() != 0)
+            {
+                foreach (var block in modBlockCollection)
+                {
+                    var currentServiceIds = currentService.First(s => s.Id == block.Id).Services.Select(s => s.Id.ToString()).ToList();
+                    var actualServiceIds = actualService.First(s => s.Id == block.Id).Services.Select(s => s.Id.ToString()).ToList();
+
+                    //currentServiceIds.RemoveAt(currentServiceIds.Count - 1);
+                    //actualServiceIds.RemoveAt(0);
+
+                    var delServiceCollection = currentService.First(s => s.Id == block.Id).Services.Where(s => !actualServiceIds.Contains(s.Id.ToString())).ToList();
+                    var addServiceCollection = actualService.First(s => s.Id == block.Id).Services.Where(s => !currentServiceIds.Contains(s.Id.ToString())).ToList();
+
+                    var modServiceCollection = currentService.First(s => s.Id == block.Id).Services.Where(s => actualServiceIds.Contains(s.Id.ToString())).ToList();
+
+                    if (delServiceCollection.Count != 0) serviceUpdate.DelServiceCollection[block.Id] = delServiceCollection;
+                    if (addServiceCollection.Count != 0) serviceUpdate.AddServiceCollection[block.Id] = addServiceCollection;
+
+                    if (modServiceCollection.Count != 0)
+                    {
+                        foreach (var el in modServiceCollection)
+                        {
+                            var curService = currentService.First(s => s.Id == block.Id).Services.First(s => s.Id == el.Id);
+                            var actlService = actualService.First(s => s.Id == block.Id).Services.First(s => s.Id == el.Id);
+
+                            //actlService.Price = 100;
+                            //actlService.Name = "123";
+                            //actlService.Time = 10;
+
+                            var isPrise = curService.Price != actlService.Price;
+                            var isName = curService.Name != actlService.Name;
+                            var isTime = curService.Time != actlService.Time;
+
+                            if (isPrise || isName || isTime)
+                            {
+                                if (!serviceUpdate.ModServiceCollection.ContainsKey(block.Id))
+                                {
+                                    serviceUpdate.ModServiceCollection[block.Id] = new Dictionary<int, (Service, Service)>();
+                                }
+                                serviceUpdate.ModServiceCollection[block.Id][el.Id] = (curService, actlService);
+                            }
+
+                            var name = isName ? curService.Id.ToString() : curService.Name.Replace('\n', ' ');
+                        }
+                    }
+                }
+            }
+
+            return serviceUpdate;
+        }
+
+        private void Print(Dictionary<string, MasterInfo> masters, CompanyInfo companyInfo, ServiceDataResponse actualServiceData, ServiceUpdate serviceUpdate)
+        {
+            var filePath = CheckServiceFile(companyInfo.Id);
+
             var content = new StringBuilder();
             var now = DateTime.Now;
 
@@ -23,10 +140,10 @@ namespace DikidiStalker
 
                     if (hasChanges)
                     {
-                        var message = $"[ {now} ]\tОбнаружены изменения в услугах организации \"{companyInfo.Name}\"";
+                        var message = $"[ {now} ]\tОбнаружены изменения в услугах организации";
 
-                        Console.WriteLine($"{message}  ({companyInfo.Id})");
-                        content.AppendLine($"{message}\n");
+                        Console.WriteLine($"{message} ({companyInfo.Id})\t\"{companyInfo.Name}\"");
+                        content.AppendLine($"{message} \"{companyInfo.Name}\"\n");
                     }
 
                     if (serviceUpdate.DelBlockCollection.Count != 0)
@@ -151,7 +268,7 @@ namespace DikidiStalker
             }
             else
             {
-                content.AppendLine($"[ {now} ]\tВозникла ошибка при анализе услуг организации \"{companyInfo.Name}\" ({companyInfo.Id}): {serviceUpdate.Exception}");
+                content.AppendLine($"[ {now} ]\tВозникла ошибка при анализе услуг организации \"{companyInfo.Name}\": {serviceUpdate.Exception}");
             }
 
             using (StreamWriter writer = new StreamWriter(filePath, append: true))
@@ -162,6 +279,26 @@ namespace DikidiStalker
                     writer.WriteLine("==================================================\n");
                 }
             }
+        }
+
+        private string CheckServiceFile(string? id)
+        {
+            if (!Directory.Exists(_baseDirectory)) Directory.CreateDirectory(_baseDirectory);
+
+            var dikidiCompanyFolder = Path.Combine(_baseDirectory, $"Dikidi_{id}");
+
+            if (!Directory.Exists(dikidiCompanyFolder))
+            {
+                Console.WriteLine($"[ {DateTime.Now} ]\tСоздание папки для организации {id}");
+                Directory.CreateDirectory(dikidiCompanyFolder);
+            }
+
+            var infoFile = Path.Combine(dikidiCompanyFolder, "Service.dkdstlk");
+
+            if (!File.Exists(infoFile))
+                File.WriteAllText(infoFile, string.Empty);
+
+            return infoFile;
         }
     }
 }
