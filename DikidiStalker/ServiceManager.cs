@@ -36,13 +36,20 @@ namespace DikidiStalker
 
             var serviceUpdate = new ServiceUpdate();
 
-            if (currentServiceData.TryGetValue(company.CompanyId, out var current))
+            try
             {
-                serviceUpdate = UpdateCurrentService(companyInfo, current, actualServiceData);
+                if (currentServiceData.TryGetValue(company.CompanyId, out var current))
+                {
+                    serviceUpdate = UpdateCurrentService(companyInfo, current, actualServiceData);
+                }
+                else
+                {
+                    serviceUpdate.InitializeCollection = actualServiceData;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                serviceUpdate.InitializeCollection = actualServiceData;
+                serviceUpdate.Exception = ex.Message;
             }
 
             Print(masters, companyInfo, actualServiceData, serviceUpdate);

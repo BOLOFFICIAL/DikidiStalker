@@ -7,5 +7,7 @@
         public Dictionary<DateTime, Dictionary<string, List<string>>> AddCollection { get; set; } = new();
         public Dictionary<DateTime, DataInfoResponse> InitializeCollection { get; set; } = new();
         public string Exception { get; set; }
+        public DataInfo AddDayCollection { get; set; } = new();
+        public DataInfo DelDayCollection { get; set; } = new();
     }
 }

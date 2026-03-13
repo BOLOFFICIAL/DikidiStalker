@@ -60,13 +60,20 @@ namespace DikidiStalker
 
             var slotUpdate = new SlotUpdate();
 
-            if (currentDataInfo.TryGetValue(company.CompanyId, out var current))
+            try
             {
-                slotUpdate = UpdateCurrentSlots(current, actualDataInfo);
+                if (currentDataInfo.TryGetValue(company.CompanyId, out var current))
+                {
+                    slotUpdate = UpdateCurrentSlots(current, actualDataInfo);
+                }
+                else
+                {
+                    slotUpdate.InitializeCollection = actualDataInfo;
+                }
             }
-            else
+            catch (Exception ex)
             {
-                slotUpdate.InitializeCollection = actualDataInfo;
+                slotUpdate.Exception = ex.Message;
             }
 
             var companyInfo = actualDataInfo.Values.FirstOrDefault()?.Data?.Company;
@@ -109,14 +116,34 @@ namespace DikidiStalker
                 var addCollection = new Dictionary<string, List<string>>();
 
                 if (divCurrent is null || divActual is null)
-                    continue;
+                {
+                    if (divCurrent is null && divActual != null)
+                    {
+                        slotUpdate.AddDayCollection = divActual;
+                    }
+
+                    if (divActual is null && divCurrent != null)
+                    {
+                        slotUpdate.DelDayCollection = divCurrent;
+                    }
+
+                    if (divCurrent is null && divActual is null)
+                        continue;
+                }
 
                 foreach (var time in divCurrent?.Times?.Where(t => t.Key != "0"))
                 {
                     if (!delCollection.ContainsKey(time.Key))
                         delCollection[time.Key] = new List<string>();
 
-                    delCollection[time.Key].AddRange(time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList());
+                    var slots = time.Value;
+
+                    if (divActual.Times.ContainsKey(time.Key))
+                    {
+                        slots = time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList();
+                    }
+
+                    delCollection[time.Key].AddRange(slots);
 
                     if (delCollection[time.Key].Count == 0)
                         delCollection.Remove(time.Key);
@@ -127,7 +154,14 @@ namespace DikidiStalker
                     if (!addCollection.ContainsKey(time.Key))
                         addCollection[time.Key] = new List<string>();
 
-                    addCollection[time.Key].AddRange(time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList());
+                    var slots = time.Value;
+
+                    if (divCurrent.Times.ContainsKey(time.Key))
+                    {
+                        slots = time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList();
+                    }
+
+                    addCollection[time.Key].AddRange(slots);
 
                     if (addCollection[time.Key].Count == 0)
                         addCollection.Remove(time.Key);
