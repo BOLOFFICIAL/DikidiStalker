@@ -78,6 +78,19 @@ namespace DikidiStalker
 
             var companyInfo = actualDataInfo.Values.FirstOrDefault()?.Data?.Company;
 
+            if (companyInfo is null && currentDataInfo.TryGetValue(company.CompanyId, out var currentData)) 
+            {
+                if (masters.Count == 0)
+                {
+                    masters = currentData.Values
+                        .SelectMany(a => a.Data.Masters)
+                        .DistinctBy(x => x.Key)
+                        .ToDictionary(x => x.Key, x => x.Value);
+                }
+
+                companyInfo = currentData.Values.FirstOrDefault()?.Data?.Company;
+            }
+
             Print(masters, companyInfo, slotUpdate);
 
             currentDataInfo[company.CompanyId] = actualDataInfo;
@@ -89,13 +102,23 @@ namespace DikidiStalker
         {
             var now = DateTime.Now;
             var slotUpdate = new SlotUpdate();
-            var minActual = actualDataInfo.Keys.Min();
+            var minActual = new DateTime();
+
+            if (actualDataInfo.Count > 0) 
+            {
+                minActual = actualDataInfo.Keys.Min();
+            }
 
             //currentDataInfo.Remove(currentDataInfo.Last().Key);
 
-            var maxCurrent = currentDataInfo.Keys.Max();
+            var maxCurrent = new DateTime();
 
-            if (actualDataInfo.Count < currentDataInfo.Count)
+            if (currentDataInfo.Count > 0) 
+            {
+                maxCurrent = currentDataInfo.Keys.Max();
+            }
+
+            if (actualDataInfo.Count < currentDataInfo.Count && actualDataInfo.Count > 0)
             {
                 maxCurrent = actualDataInfo.Keys.Max();
             }
@@ -138,7 +161,7 @@ namespace DikidiStalker
 
                     var slots = time.Value;
 
-                    if (divActual.Times.ContainsKey(time.Key))
+                    if (divActual != null && divActual.Times.ContainsKey(time.Key))
                     {
                         slots = time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList();
                     }
@@ -149,22 +172,25 @@ namespace DikidiStalker
                         delCollection.Remove(time.Key);
                 }
 
-                foreach (var time in divActual?.Times?.Where(t => t.Key != "0"))
+                if (divActual != null) 
                 {
-                    if (!addCollection.ContainsKey(time.Key))
-                        addCollection[time.Key] = new List<string>();
-
-                    var slots = time.Value;
-
-                    if (divCurrent.Times.ContainsKey(time.Key))
+                    foreach (var time in divActual.Times?.Where(t => t.Key != "0"))
                     {
-                        slots = time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList();
+                        if (!addCollection.ContainsKey(time.Key))
+                            addCollection[time.Key] = new List<string>();
+
+                        var slots = time.Value;
+
+                        if (divCurrent.Times.ContainsKey(time.Key))
+                        {
+                            slots = time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList();
+                        }
+
+                        addCollection[time.Key].AddRange(slots);
+
+                        if (addCollection[time.Key].Count == 0)
+                            addCollection.Remove(time.Key);
                     }
-
-                    addCollection[time.Key].AddRange(slots);
-
-                    if (addCollection[time.Key].Count == 0)
-                        addCollection.Remove(time.Key);
                 }
 
                 if (delCollection.Count != 0) slotUpdate.DelCollection[day] = delCollection;
@@ -178,6 +204,8 @@ namespace DikidiStalker
 
         private void Print(Dictionary<string, MasterInfo> masters, CompanyInfo companyInfo, SlotUpdate slotUpdate)
         {
+            if (companyInfo is null || masters.Count == 0) return;
+
             var filePath = CheckSlotFile(companyInfo.Id);
 
             var content = new StringBuilder();
