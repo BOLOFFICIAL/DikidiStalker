@@ -91,7 +91,9 @@ namespace DikidiStalker
                 companyInfo = currentData.Values.FirstOrDefault()?.Data?.Company;
             }
 
-            Print(masters, companyInfo, slotUpdate);
+            PrintActual(companyInfo, actualDataInfo);
+
+            PrintUpdate(masters, companyInfo, slotUpdate);
 
             currentDataInfo[company.CompanyId] = actualDataInfo;
 
@@ -202,38 +204,16 @@ namespace DikidiStalker
             return slotUpdate;
         }
 
-        private void Print(Dictionary<string, MasterInfo> masters, CompanyInfo companyInfo, SlotUpdate slotUpdate)
+        private void PrintUpdate(Dictionary<string, MasterInfo> masters, CompanyInfo companyInfo, SlotUpdate slotUpdate)
         {
             if (companyInfo is null || masters.Count == 0) return;
-
-            var filePath = CheckSlotFile(companyInfo.Id);
 
             var content = new StringBuilder();
             var now = DateTime.Now;
 
             if (slotUpdate.Exception is null)
             {
-                if (slotUpdate.InitializeCollection.Count > 0)
-                {
-                    content.AppendLine($"[ {now} ]\tАктуальные слоты для организации \"{companyInfo.Name}\"\n");
-
-                    foreach (var dataInfo in slotUpdate.InitializeCollection)
-                    {
-                        content.AppendLine($"\t| Дата: {dataInfo.Key.ToShortDateString()}\n");
-
-                        foreach (var time in dataInfo.Value.Data.Times.Where(t => t.Key != "0"))
-                        {
-                            content.AppendLine($"\t\t> {dataInfo.Value.Data?.Masters[time.Key].Username}\n");
-
-                            foreach (var el in time.Value)
-                            {
-                                content.AppendLine($"\t\t\t[ {DateTime.Parse(el).TimeOfDay} ]");
-                            }
-                            content.AppendLine();
-                        }
-                    }
-                }
-                else if (slotUpdate.AddCollection.Count != 0 || slotUpdate.DelCollection.Count != 0 || slotUpdate.NewCollection.Count != 0)
+                if (slotUpdate.InitializeCollection.Count == 0 && (slotUpdate.AddCollection.Count != 0 || slotUpdate.DelCollection.Count != 0 || slotUpdate.NewCollection.Count != 0))
                 {
                     var message = $"[ {now} ]\tОбнаружены изменения в слотах организации";
 
@@ -312,7 +292,9 @@ namespace DikidiStalker
                 content.AppendLine($"[ {now} ]\tВозникла ошибка при анализе слотов организации \"{companyInfo.Name}\": {slotUpdate.Exception}");
             }
 
-            using (StreamWriter writer = new StreamWriter(filePath, append: true))
+            var slotFiles = GetSlotFilePaths(companyInfo.Id);
+
+            using (StreamWriter writer = new StreamWriter(slotFiles.update, append: true))
             {
                 if (content.Length > 0)
                 {
@@ -322,7 +304,44 @@ namespace DikidiStalker
             }
         }
 
-        private string CheckSlotFile(string? id)
+        private void PrintActual(CompanyInfo companyInfo, Dictionary<DateTime, DataInfoResponse> actualCollection)
+        {
+            if (companyInfo is null) return;
+
+            var content = new StringBuilder();
+            var now = DateTime.Now;
+
+            content.AppendLine($"[ {now} ]\tАктуальные слоты для организации \"{companyInfo.Name}\"\n");
+
+            foreach (var dataInfo in actualCollection)
+            {
+                content.AppendLine($"\t| Дата: {dataInfo.Key.ToShortDateString()}\n");
+
+                foreach (var time in dataInfo.Value.Data.Times.Where(t => t.Key != "0"))
+                {
+                    content.AppendLine($"\t\t> {dataInfo.Value.Data?.Masters[time.Key].Username}\n");
+
+                    foreach (var el in time.Value)
+                    {
+                        content.AppendLine($"\t\t\t[ {DateTime.Parse(el).TimeOfDay} ]");
+                    }
+                    content.AppendLine();
+                }
+            }
+
+            var slotFiles = GetSlotFilePaths(companyInfo.Id);
+
+            using (StreamWriter writer = new StreamWriter(slotFiles.actual))
+            {
+                if (content.Length > 0)
+                {
+                    writer.Write(content);
+                    writer.WriteLine("\n");
+                }
+            }
+        }
+
+        private (string actual, string update) GetSlotFilePaths(string? id)
         {
             if (!Directory.Exists(_baseDirectory)) Directory.CreateDirectory(_baseDirectory);
 
@@ -334,12 +353,24 @@ namespace DikidiStalker
                 Directory.CreateDirectory(dikidiCompanyFolder);
             }
 
-            var infoFile = Path.Combine(dikidiCompanyFolder, "Info.dkdstlk");
+            dikidiCompanyFolder = Path.Combine(dikidiCompanyFolder, $"SlotsInfo");
 
-            if (!File.Exists(infoFile))
-                File.WriteAllText(infoFile, string.Empty);
+            if (!Directory.Exists(dikidiCompanyFolder))
+            {
+                Directory.CreateDirectory(dikidiCompanyFolder);
+            }
 
-            return infoFile;
+            var actualInfoFile = Path.Combine(dikidiCompanyFolder, "ActualInfo.dkdstlk");
+
+            if (!File.Exists(actualInfoFile))
+                File.WriteAllText(actualInfoFile, string.Empty);
+
+            var updateInfoFile = Path.Combine(dikidiCompanyFolder, "UpdateInfo.dkdstlk");
+
+            if (!File.Exists(updateInfoFile))
+                File.WriteAllText(updateInfoFile, string.Empty);
+
+            return (actualInfoFile, updateInfoFile);
         }
     }
 }

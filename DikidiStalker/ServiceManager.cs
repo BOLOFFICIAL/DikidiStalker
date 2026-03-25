@@ -52,7 +52,9 @@ namespace DikidiStalker
                 serviceUpdate.Exception = ex.Message;
             }
 
-            Print(masters, companyInfo, actualServiceData, serviceUpdate);
+            PrintActual(companyInfo, actualServiceData);
+
+            PrintUpdate(companyInfo, actualServiceData, serviceUpdate);
 
             currentServiceData[company.CompanyId] = actualServiceData;
 
@@ -127,10 +129,8 @@ namespace DikidiStalker
             return serviceUpdate;
         }
 
-        private void Print(Dictionary<string, MasterInfo> masters, CompanyInfo companyInfo, ServiceDataResponse actualServiceData, ServiceUpdate serviceUpdate)
+        private void PrintUpdate(CompanyInfo companyInfo, ServiceDataResponse actualServiceData, ServiceUpdate serviceUpdate)
         {
-            var filePath = CheckServiceFile(companyInfo.Id);
-
             var content = new StringBuilder();
             var now = DateTime.Now;
 
@@ -255,30 +255,15 @@ namespace DikidiStalker
                         }
                     }
                 }
-                else
-                {
-                    content.AppendLine($"[ {now} ]\tАктуальные услуги для организации \"{companyInfo.Name}\"\n");
-
-                    var data = serviceUpdate.InitializeCollection;
-
-                    foreach (var block in data.Data.List)
-                    {
-                        content.AppendLine($"\t| Блок: {block.Name}\n");
-
-                        foreach (var service in block.Services)
-                        {
-                            content.AppendLine($"\t\t> {service.Price} {data.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                        }
-                        content.AppendLine();
-                    }
-                }
             }
             else
             {
                 content.AppendLine($"[ {now} ]\tВозникла ошибка при анализе услуг организации \"{companyInfo.Name}\": {serviceUpdate.Exception}");
             }
 
-            using (StreamWriter writer = new StreamWriter(filePath, append: true))
+            var serviceFiles = GetServiceFilePaths(companyInfo.Id);
+
+            using (StreamWriter writer = new StreamWriter(serviceFiles.update, append: true))
             {
                 if (content.Length > 0)
                 {
@@ -288,7 +273,33 @@ namespace DikidiStalker
             }
         }
 
-        private string CheckServiceFile(string? id)
+        private void PrintActual(CompanyInfo companyInfo, ServiceDataResponse actualcollection)
+        {
+            var content = new StringBuilder();
+            var now = DateTime.Now;
+
+            content.AppendLine($"[ {now} ]\tАктуальные услуги для организации \"{companyInfo.Name}\"\n");
+
+            foreach (var block in actualcollection.Data.List)
+            {
+                content.AppendLine($"\t| Блок: {block.Name}\n");
+
+                foreach (var service in block.Services)
+                {
+                    content.AppendLine($"\t\t> {service.Price} {actualcollection.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
+                }
+                content.AppendLine();
+            }
+
+            var serviceFiles = GetServiceFilePaths(companyInfo.Id);
+
+            using (StreamWriter writer = new StreamWriter(serviceFiles.actual))
+            {
+                if (content.Length > 0) writer.Write(content);
+            }
+        }
+
+        private (string actual, string update) GetServiceFilePaths(string? id)
         {
             if (!Directory.Exists(_baseDirectory)) Directory.CreateDirectory(_baseDirectory);
 
@@ -300,12 +311,24 @@ namespace DikidiStalker
                 Directory.CreateDirectory(dikidiCompanyFolder);
             }
 
-            var infoFile = Path.Combine(dikidiCompanyFolder, "Service.dkdstlk");
+            dikidiCompanyFolder = Path.Combine(dikidiCompanyFolder, $"ServicesInfo");
 
-            if (!File.Exists(infoFile))
-                File.WriteAllText(infoFile, string.Empty);
+            if (!Directory.Exists(dikidiCompanyFolder))
+            {
+                Directory.CreateDirectory(dikidiCompanyFolder);
+            }
 
-            return infoFile;
+            var actualInfoFile = Path.Combine(dikidiCompanyFolder, "ActualService.dkdstlk");
+
+            if (!File.Exists(actualInfoFile))
+                File.WriteAllText(actualInfoFile, string.Empty);
+
+            var updateInfoFile = Path.Combine(dikidiCompanyFolder, "UpdateService.dkdstlk");
+
+            if (!File.Exists(updateInfoFile))
+                File.WriteAllText(updateInfoFile, string.Empty);
+
+            return (actualInfoFile, updateInfoFile);
         }
     }
 }
