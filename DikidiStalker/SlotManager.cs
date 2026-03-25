@@ -155,23 +155,25 @@ namespace DikidiStalker
                     if (divCurrent is null && divActual is null)
                         continue;
                 }
-
-                foreach (var time in divCurrent?.Times?.Where(t => t.Key != "0"))
+                if (divCurrent != null)
                 {
-                    if (!delCollection.ContainsKey(time.Key))
-                        delCollection[time.Key] = new List<string>();
-
-                    var slots = time.Value;
-
-                    if (divActual != null && divActual.Times.ContainsKey(time.Key))
+                    foreach (var time in divCurrent?.Times?.Where(t => t.Key != "0"))
                     {
-                        slots = time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList();
+                        if (!delCollection.ContainsKey(time.Key))
+                            delCollection[time.Key] = new List<string>();
+
+                        var slots = time.Value;
+
+                        if (divActual != null && divActual.Times.ContainsKey(time.Key))
+                        {
+                            slots = time.Value.Where(value => !divActual.Times[time.Key].Contains(value)).ToList();
+                        }
+
+                        delCollection[time.Key].AddRange(slots);
+
+                        if (delCollection[time.Key].Count == 0)
+                            delCollection.Remove(time.Key);
                     }
-
-                    delCollection[time.Key].AddRange(slots);
-
-                    if (delCollection[time.Key].Count == 0)
-                        delCollection.Remove(time.Key);
                 }
 
                 if (divActual != null) 
@@ -183,7 +185,7 @@ namespace DikidiStalker
 
                         var slots = time.Value;
 
-                        if (divCurrent.Times.ContainsKey(time.Key))
+                        if (divCurrent != null && divCurrent.Times.ContainsKey(time.Key))
                         {
                             slots = time.Value.Where(value => !divCurrent.Times[time.Key].Contains(value)).ToList();
                         }
