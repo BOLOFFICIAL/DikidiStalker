@@ -149,7 +149,7 @@ namespace DikidiStalker
                     {
                         var message = $"[ {now} ]\tОбнаружены изменения в услугах организации";
 
-                        Console.WriteLine($"{message} ({companyInfo.Id})\t\"{companyInfo.Name}\"");
+                        Writer.ConsoleWriteLine($"{message} ({companyInfo.Id})\t\"{companyInfo.Name}\"", ConsoleColor.DarkYellow);
                         content.AppendLine($"{message} \"{companyInfo.Name}\"\n");
                     }
 
@@ -258,18 +258,16 @@ namespace DikidiStalker
             }
             else
             {
-                content.AppendLine($"[ {now} ]\tВозникла ошибка при анализе услуг организации \"{companyInfo.Name}\": {serviceUpdate.Exception}");
+                var message = $"[ {now} ]\tВозникла ошибка при анализе услуг организации \"{companyInfo.Name}\": {serviceUpdate.Exception}";
+                Writer.ConsoleWriteLine(message, ConsoleColor.Red);
+                content.AppendLine(message);
             }
 
             var serviceFiles = GetServiceFilePaths(companyInfo.Id);
 
-            using (StreamWriter writer = new StreamWriter(serviceFiles.update, append: true))
+            if (content.Length > 0)
             {
-                if (content.Length > 0)
-                {
-                    writer.Write(content);
-                    writer.WriteLine("==================================================\n");
-                }
+                Writer.WriteFile(content.Append("==================================================\n\n").ToString(), serviceFiles.update, append: true);
             }
         }
 
@@ -293,9 +291,9 @@ namespace DikidiStalker
 
             var serviceFiles = GetServiceFilePaths(companyInfo.Id);
 
-            using (StreamWriter writer = new StreamWriter(serviceFiles.actual))
+            if (content.Length > 0)
             {
-                if (content.Length > 0) writer.Write(content);
+                Writer.WriteFile(content.ToString(), serviceFiles.actual);
             }
         }
 
@@ -307,7 +305,7 @@ namespace DikidiStalker
 
             if (!Directory.Exists(dikidiCompanyFolder))
             {
-                Console.WriteLine($"[ {DateTime.Now} ]\tСоздание папки для организации {id}");
+                Writer.ConsoleWriteLine($"[ {DateTime.Now} ]\tСоздание папки для организации {id}", ConsoleColor.Blue);
                 Directory.CreateDirectory(dikidiCompanyFolder);
             }
 

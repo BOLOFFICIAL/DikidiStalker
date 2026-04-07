@@ -1,5 +1,6 @@
 ﻿using DikidiStalker;
 using DikidiStalker.Config;
+using DikidiStalker.Models;
 
 internal class Program
 {
@@ -29,7 +30,7 @@ internal class Program
 
         var now = DateTime.Now;
 
-        Console.WriteLine($"[ {now} ]\tDikidiStalker started");
+        Writer.ConsoleWriteLine($"[ {now} ]\tDikidiStalker started");
 
         while (true)
         {
@@ -67,29 +68,29 @@ internal class Program
             {
                 if (totalInfoMinutes > dataInfoInhibitor || totalServiceMinutes > serviceDataInhibitor)
                 {
-                    Console.Write($"[ {DateTime.Now} ]\tАнализ завершен: ");
+                    Writer.ConsoleWrite($"[ {DateTime.Now} ]\tАнализ завершен: ");
 
                     if (totalInfoMinutes > dataInfoInhibitor)
                     {
                         lastInfoUpdate = now;
-                        Console.Write($"( Слоты ) ");
+                        Writer.ConsoleWrite($"( Слоты ) ", ConsoleColor.Green);
                     }
                     if (totalServiceMinutes > serviceDataInhibitor)
                     {
                         lastServiceUpdate = now;
-                        Console.Write($"( Услуги ) ");
+                        Writer.ConsoleWrite($"( Услуги ) ", ConsoleColor.DarkYellow);
                     }
 
                     if (currentDikidiCompanyes.Count > 0 && onlyInActual.Count != 0)
                     {
-                        Console.Write($"( Данные по новым ораганизациям ) ");
+                        Writer.ConsoleWrite($"( Данные по новым ораганизациям ) ", ConsoleColor.Blue);
                     }
 
-                    Console.WriteLine();
+                    Writer.ConsoleWriteLine("");
                 }
                 else if (onlyInActual.Count != 0)
                 {
-                    Console.WriteLine($"[ {DateTime.Now} ]\tАнализ всех данных по добавленным организациям");
+                    Writer.ConsoleWriteLine($"[ {DateTime.Now} ]\tАнализ всех данных по добавленным организациям", ConsoleColor.Blue);
                 }
             }
 
