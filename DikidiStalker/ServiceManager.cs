@@ -16,40 +16,53 @@ namespace DikidiStalker
             _backupManager = new BackupManager(_baseDirectory);
         }
 
-        public Dictionary<string, ServiceDataResponse> LoadBackup()
+        public Dictionary<string, Dictionary<string, (MasterInfo, ServiceDataResponse)>> LoadBackup()
         {
-            return _backupManager.LoadBackup<Dictionary<string, ServiceDataResponse>>("ServiceBackUp");
+            return _backupManager.LoadBackup<Dictionary<string, Dictionary<string, (MasterInfo, ServiceDataResponse)>>>("ServiceBackUp");
         }
 
-        public void CheckDikidiService(Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, Dictionary<string, ServiceDataResponse> currentServiceData, DikidiCompany company)
+        public void CheckDikidiService(Dictionary<string, Dictionary<DateTime, DataInfoResponse>> currentDataInfo, Dictionary<string, Dictionary<string, (MasterInfo, ServiceDataResponse)>> currentServiceData, DikidiCompany company)
         {
-            var actualServiceData = DikidiInfo.GetCompanyServices(company);
             var companyInfo = currentDataInfo.FirstOrDefault(i => i.Key == company.CompanyId.ToString()).Value?.FirstOrDefault().Value?.Data?.Company;
 
             var masters = currentDataInfo
+                .Where(c=>c.Key == company.CompanyId.ToString())
                 .SelectMany(outerKvp => outerKvp.Value)
                 .SelectMany(innerKvp => innerKvp.Value.Data.Masters)
                 .GroupBy(m => m.Key)
                 .ToDictionary(g => g.Key, g => g.Last().Value);
 
-            if (companyInfo is null || actualServiceData is null) return;
+            var actualServiceData = new Dictionary<string, (MasterInfo, ServiceDataResponse)>();
+            var serviceUpdate = new Dictionary<string, (MasterInfo, ServiceUpdate)>();
 
-            var serviceUpdate = new ServiceUpdate();
+            if (companyInfo is null) return;
 
-            try
+            foreach (var master in masters.Where(m => m.Value.Id != "0"))
             {
-                if (currentServiceData.TryGetValue(company.CompanyId, out var current))
+                var actualServiceDataForMaster = DikidiInfo.GetCompanyServices(company, master.Key);
+
+                if (actualServiceDataForMaster is null) return;
+
+                var serviceUpdateForMaster = new ServiceUpdate();
+
+                try
                 {
-                    serviceUpdate = UpdateCurrentService(companyInfo, current, actualServiceData);
+                    if (currentServiceData.TryGetValue(company.CompanyId, out var current) && current.TryGetValue(master.Key, out var currentMaster))
+                    {
+                        serviceUpdateForMaster = UpdateCurrentService(companyInfo, currentMaster.Item2, actualServiceDataForMaster);
+                    }
+                    else
+                    {
+                        serviceUpdateForMaster.InitializeCollection = actualServiceDataForMaster;
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    serviceUpdate.InitializeCollection = actualServiceData;
+                    serviceUpdateForMaster.Exception = ex.Message;
                 }
-            }
-            catch (Exception ex)
-            {
-                serviceUpdate.Exception = ex.Message;
+
+                actualServiceData.Add(master.Key, (master.Value, actualServiceDataForMaster));
+                serviceUpdate.Add(master.Key, (master.Value, serviceUpdateForMaster));
             }
 
             PrintActual(companyInfo, actualServiceData);
@@ -129,138 +142,144 @@ namespace DikidiStalker
             return serviceUpdate;
         }
 
-        private void PrintUpdate(CompanyInfo companyInfo, ServiceDataResponse actualServiceData, ServiceUpdate serviceUpdate)
+        private void PrintUpdate(CompanyInfo companyInfo, Dictionary<string, (MasterInfo, ServiceDataResponse)> actualServiceDataAll, Dictionary<string, (MasterInfo, ServiceUpdate)> serviceUpdateAll)
         {
             var content = new StringBuilder();
             var now = DateTime.Now;
 
-            if (serviceUpdate.Exception is null)
+            foreach (var el in serviceUpdateAll)
             {
-                if (serviceUpdate.InitializeCollection is null)
+                var serviceUpdate = el.Value.Item2;
+                var actualServiceData = actualServiceDataAll[el.Key].Item2;
+
+                if (serviceUpdate.Exception is null)
                 {
-                    var hasChanges = false;
-                    hasChanges |= serviceUpdate.DelBlockCollection.Count != 0;
-                    hasChanges |= serviceUpdate.AddBlockCollection.Count != 0;
-                    hasChanges |= serviceUpdate.AddServiceCollection.Count != 0;
-                    hasChanges |= serviceUpdate.DelServiceCollection.Count != 0;
-                    hasChanges |= serviceUpdate.ModServiceCollection.Count != 0;
-
-                    if (hasChanges)
+                    if (serviceUpdate.InitializeCollection is null)
                     {
-                        var message = $"[ {now} ]\tОбнаружены изменения в услугах организации";
+                        var hasChanges = false;
+                        hasChanges |= serviceUpdate.DelBlockCollection.Count != 0;
+                        hasChanges |= serviceUpdate.AddBlockCollection.Count != 0;
+                        hasChanges |= serviceUpdate.AddServiceCollection.Count != 0;
+                        hasChanges |= serviceUpdate.DelServiceCollection.Count != 0;
+                        hasChanges |= serviceUpdate.ModServiceCollection.Count != 0;
 
-                        Writer.ConsoleWriteLine($"{message} ({companyInfo.Id})\t\"{companyInfo.Name}\"", ConsoleColor.DarkYellow);
-                        content.AppendLine($"{message} \"{companyInfo.Name}\"\n");
-                    }
-
-                    if (serviceUpdate.DelBlockCollection.Count != 0)
-                    {
-                        content.AppendLine($"\t| Удаленные блоки:\n");
-
-                        foreach (var block in serviceUpdate.DelBlockCollection)
+                        if (hasChanges)
                         {
-                            content.AppendLine($"\t\t| Блок {block.Name}\n");
+                            var message = $"[ {now} ]\tОбнаружены изменения в услугах мастера {el.Value.Item1.Username} организации";
 
-                            foreach (var service in block.Services)
-                            {
-                                content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                            }
-
-                            content.AppendLine();
+                            Writer.ConsoleWriteLine($"{message} ({companyInfo.Id})\t\"{companyInfo.Name}\"", ConsoleColor.DarkYellow);
+                            content.AppendLine($"{message} \"{companyInfo.Name}\"\n");
                         }
-                    }
 
-                    if (serviceUpdate.AddBlockCollection.Count != 0)
-                    {
-                        content.AppendLine($"\t| Добавленные блоки:\n");
-
-                        foreach (var block in serviceUpdate.AddBlockCollection)
+                        if (serviceUpdate.DelBlockCollection.Count != 0)
                         {
-                            content.AppendLine($"\t\t| Блок {block.Name}\n");
+                            content.AppendLine($"\t| Удаленные блоки:\n");
 
-                            foreach (var service in block.Services)
+                            foreach (var block in serviceUpdate.DelBlockCollection)
                             {
-                                content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                            }
+                                content.AppendLine($"\t\t| Блок {block.Name}\n");
 
-                            content.AppendLine();
-                        }
-                    }
-
-                    if (serviceUpdate.AddServiceCollection.Count != 0)
-                    {
-                        content.AppendLine($"\t| Добавленные услуги:\n");
-
-                        foreach (var block in serviceUpdate.AddServiceCollection)
-                        {
-                            content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
-
-                            foreach (var service in block.Value)
-                            {
-                                content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                            }
-
-                            content.AppendLine();
-                        }
-                    }
-
-                    if (serviceUpdate.DelServiceCollection.Count != 0)
-                    {
-                        content.AppendLine($"\t| Удаленные услуги:\n");
-
-                        foreach (var block in serviceUpdate.DelServiceCollection)
-                        {
-                            content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
-
-                            foreach (var service in block.Value)
-                            {
-                                content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
-                            }
-
-                            content.AppendLine();
-                        }
-                    }
-
-                    if (serviceUpdate.ModServiceCollection.Count != 0)
-                    {
-                        content.AppendLine($"\t| Измененные услуги:\n");
-
-                        foreach (var block in serviceUpdate.ModServiceCollection)
-                        {
-                            content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
-
-                            foreach (var service in block.Value)
-                            {
-                                content.AppendLine($"\t\t\t| Услуга: {actualServiceData.Data.List.First(b => b.Id == block.Key).Services.First(s => s.Id == service.Key).Name.Replace('\n', ' ')}\n");
-
-                                var value = service.Value;
-
-                                if (value.Item1.Price != value.Item2.Price)
+                                foreach (var service in block.Services)
                                 {
-                                    content.AppendLine($"\t\t\t\t| Цена: {value.Item1.Price} -> {value.Item2.Price}");
-                                }
-
-                                if (value.Item1.Name != value.Item2.Name)
-                                {
-                                    content.AppendLine($"\t\t\t\t| Название: {value.Item1.Name.Replace('\n', ' ')} -> {value.Item2.Name.Replace('\n', ' ')}");
-                                }
-
-                                if (value.Item1.Time != value.Item2.Time)
-                                {
-                                    content.AppendLine($"\t\t\t\t| Время: {value.Item1.Time} -> {value.Item2.Time}");
+                                    content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
                                 }
 
                                 content.AppendLine();
                             }
                         }
+
+                        if (serviceUpdate.AddBlockCollection.Count != 0)
+                        {
+                            content.AppendLine($"\t| Добавленные блоки:\n");
+
+                            foreach (var block in serviceUpdate.AddBlockCollection)
+                            {
+                                content.AppendLine($"\t\t| Блок {block.Name}\n");
+
+                                foreach (var service in block.Services)
+                                {
+                                    content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
+                                }
+
+                                content.AppendLine();
+                            }
+                        }
+
+                        if (serviceUpdate.AddServiceCollection.Count != 0)
+                        {
+                            content.AppendLine($"\t| Добавленные услуги:\n");
+
+                            foreach (var block in serviceUpdate.AddServiceCollection)
+                            {
+                                content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
+
+                                foreach (var service in block.Value)
+                                {
+                                    content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
+                                }
+
+                                content.AppendLine();
+                            }
+                        }
+
+                        if (serviceUpdate.DelServiceCollection.Count != 0)
+                        {
+                            content.AppendLine($"\t| Удаленные услуги:\n");
+
+                            foreach (var block in serviceUpdate.DelServiceCollection)
+                            {
+                                content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
+
+                                foreach (var service in block.Value)
+                                {
+                                    content.AppendLine($"\t\t\t> {service.Price} {actualServiceData.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
+                                }
+
+                                content.AppendLine();
+                            }
+                        }
+
+                        if (serviceUpdate.ModServiceCollection.Count != 0)
+                        {
+                            content.AppendLine($"\t| Измененные услуги:\n");
+
+                            foreach (var block in serviceUpdate.ModServiceCollection)
+                            {
+                                content.AppendLine($"\t\t| Блок: {actualServiceData.Data.List.First(b => b.Id == block.Key).Name}\n");
+
+                                foreach (var service in block.Value)
+                                {
+                                    content.AppendLine($"\t\t\t| Услуга: {actualServiceData.Data.List.First(b => b.Id == block.Key).Services.First(s => s.Id == service.Key).Name.Replace('\n', ' ')}\n");
+
+                                    var value = service.Value;
+
+                                    if (value.Item1.Price != value.Item2.Price)
+                                    {
+                                        content.AppendLine($"\t\t\t\t| Цена: {value.Item1.Price} -> {value.Item2.Price}");
+                                    }
+
+                                    if (value.Item1.Name != value.Item2.Name)
+                                    {
+                                        content.AppendLine($"\t\t\t\t| Название: {value.Item1.Name.Replace('\n', ' ')} -> {value.Item2.Name.Replace('\n', ' ')}");
+                                    }
+
+                                    if (value.Item1.Time != value.Item2.Time)
+                                    {
+                                        content.AppendLine($"\t\t\t\t| Время: {value.Item1.Time} -> {value.Item2.Time}");
+                                    }
+
+                                    content.AppendLine();
+                                }
+                            }
+                        }
                     }
                 }
-            }
-            else
-            {
-                var message = $"[ {now} ]\tВозникла ошибка при анализе услуг организации \"{companyInfo.Name}\": {serviceUpdate.Exception}";
-                Writer.ConsoleWriteLine(message, ConsoleColor.Red);
-                content.AppendLine(message);
+                else
+                {
+                    var message = $"[ {now} ]\tВозникла ошибка при анализе услуг мастера {el.Value.Item1.Username} организации \"{companyInfo.Name}\": {serviceUpdate.Exception}";
+                    Writer.ConsoleWriteLine(message, ConsoleColor.Red);
+                    content.AppendLine(message);
+                }
             }
 
             var serviceFiles = GetServiceFilePaths(companyInfo.Id);
@@ -271,22 +290,29 @@ namespace DikidiStalker
             }
         }
 
-        private void PrintActual(CompanyInfo companyInfo, ServiceDataResponse actualcollection)
+        private void PrintActual(CompanyInfo companyInfo, Dictionary<string, (MasterInfo, ServiceDataResponse)> actualcollectionAll)
         {
             var content = new StringBuilder();
             var now = DateTime.Now;
 
             content.AppendLine($"[ {now} ]\tАктуальные услуги для организации \"{companyInfo.Name}\"\n");
 
-            foreach (var block in actualcollection.Data.List)
+            foreach (var el in actualcollectionAll) 
             {
-                content.AppendLine($"\t| Блок: {block.Name}\n");
+                var actualcollection = el.Value.Item2;
 
-                foreach (var service in block.Services)
+                content.AppendLine($"\t| Мастер: {el.Value.Item1.Username}\n");
+
+                foreach (var block in actualcollection.Data.List)
                 {
-                    content.AppendLine($"\t\t> {service.Price} {actualcollection.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
+                    content.AppendLine($"\t\t| Блок: {block.Name}\n");
+
+                    foreach (var service in block.Services)
+                    {
+                        content.AppendLine($"\t\t\t> {service.Price} {actualcollection.Data.Currency.Abbr} ({service.Time} мин.) - {service.Name.Replace('\n', ' ')}");
+                    }
+                    content.AppendLine();
                 }
-                content.AppendLine();
             }
 
             var serviceFiles = GetServiceFilePaths(companyInfo.Id);

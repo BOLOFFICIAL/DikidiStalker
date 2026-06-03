@@ -6,11 +6,11 @@ namespace DikidiStalker
 {
     public class DikidiInfo
     {
-        public static ServiceDataResponse GetCompanyServices(DikidiCompany company)
+        public static ServiceDataResponse GetCompanyServices(DikidiCompany company, string master)
         {
             try
             {
-                var requestUri = $"https://dikidi.ru/mobile/ajax/newrecord/company_services/?lang=ru&array=1&company={company.CompanyId}&master=&share=";
+                var requestUri = $"https://dikidi.ru/mobile/ajax/newrecord/company_services/?lang=ru&array=1&company={company.CompanyId}&master={master}&share=";
                 var referer = $"https://dikidi.app/{company.CompanyId}?p=1.pi-po";
 
                 return SendRequest<ServiceDataResponse>(requestUri, referer).Result;
